@@ -16,6 +16,25 @@ class PointCloud:
         scale = [55000, -55000]
         center = [500, 600]
 
+        for point in self.points:
+            x, y, z = point[0], point[1], point[2]
+
+            z = self.offset[2] + z
+            x = scale[0] * (x + self.offset[0]) / z + center[0]
+            y = scale[1] * (y + self.offset[1]) / z + center[1]
+
+            i = max(int(min(x, self.width - 1)), 0)
+            j = max(int(min(y, self.height - 1)), 0)
+            self.image.putpixel((i, j), self.point_color)
+
+    def transform(self, theta):
+        for index, point in enumerate(self.points):
+            self.points[index] = theta.dot(point)
+
+    def parse(self, filename):
+        self.points = np.array([[0, 0, 0]])
+
+        # Вертим сразу, оффсет и скейл потом при отображении
         alpha, beta, gamma = map(math.radians, self.rotate)
         rotate_x = np.array([
             [1, 0, 0],
@@ -35,24 +54,6 @@ class PointCloud:
             [0, 0, 1]
         ])
 
-        for point in self.points:
-            r = np.dot(np.dot(rotate_x, rotate_y), rotate_z)
-            x, y, z = list(np.dot(r, np.array([point[0], point[1], point[2]])))
-
-            z = self.offset[2] + z
-            x = scale[0] * (x + self.offset[0]) / z + center[0]
-            y = scale[1] * (y + self.offset[1]) / z + center[1]
-
-            i = max(int(min(x, self.width - 1)), 0)
-            j = max(int(min(y, self.height - 1)), 0)
-            self.image.putpixel((i, j), self.point_color)
-
-    def transform(self, theta):
-        for index, point in enumerate(self.points):
-            self.points[index] = theta.dot(point)
-
-    def parse(self, filename):
-        self.points = np.array([[0, 0, 0]])
         with open(filename, 'r') as file:
             counter = 0
             for line in file:
@@ -63,7 +64,8 @@ class PointCloud:
                 if line:
                     if line[:2] == 'v ':
                         v, x, y, z = line.split()
-                        self.points = np.append(self.points, [[float(x), float(y), float(z)]], axis=0)
+                        r = np.dot(np.dot(rotate_x, rotate_y), rotate_z)
+                        self.points = np.append(self.points, [list(np.dot(r, np.array([float(x), float(y), float(z)])))], axis=0)
 
         self.points = np.delete(self.points, 0, 0)
 
