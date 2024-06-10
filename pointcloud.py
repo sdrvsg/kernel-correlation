@@ -1,15 +1,16 @@
 import math
 import numpy as np
-from PIL import Image
+import open3d as o3d
+from open3d.cpu.pybind.utility import Vector3dVector
 
 
 class PointCloud:
-    def __init__(self, offset, rotate, size=(1000, 1000), bg_color=(0, 0, 0)):
-        self.points = np.array([])
-        self.image = Image.new('RGB', size, bg_color)
+    def __init__(self, scale, offset, rotate, color):
+        self.cloud = None
+        self.scale = scale
         self.offset = offset
         self.rotate = rotate
-        self.width, self.height = size
+        self.color = color
 
     def draw(self, point_color=(255, 255, 255)):
         scale = [55000, -55000]
@@ -29,15 +30,21 @@ class PointCloud:
             j = max(int(min(y, self.height - 1)), 0)
             self.image.putpixel((i, j), point_color)
 
-    def copy(self, cloud):
-        self.points = cloud.points
+    @property
+    def points(self):
+        return np.asarray(self.cloud.points)
 
-    def transform(self, theta):
-        for index, point in enumerate(self.points):
-            self.points[index] = point + theta
+    def translate(self, theta):
+        self.cloud.translate(theta)
+
+    def rotate(self, theta):
+        self.cloud.rotate(theta)
 
     def parse(self, filename):
-        self.points = np.array([[0, 0, 0]])
+        self.cloud = o3d.io.read_point_cloud(filename)
+        colors = np.repeat(np.array([self.color]).astype(np.float_) / 255.0, np.asarray(self.cloud.points).shape[0], axis=0)
+        self.cloud.colors = Vector3dVector(colors)
+        return
 
         # Вертим сразу, оффсет и скейл потом при отображении
         alpha, beta, gamma = map(math.radians, self.rotate)
@@ -74,8 +81,17 @@ class PointCloud:
 
         self.points = np.delete(self.points, 0, 0)
 
-    def save(self, filename):
-        self.image.save(filename)
+    def show(self):
+        o3d.visualization.draw_geometries(
+            [self.cloud],
+            width=500,
+            height=500,
+        )
 
-    def show(self, title):
-        self.image.show(title)
+    @staticmethod
+    def visialize(*pcs):
+        o3d.visualization.draw_geometries(
+            [pc.cloud for pc in pcs],
+            width=500,
+            height=500,
+        )

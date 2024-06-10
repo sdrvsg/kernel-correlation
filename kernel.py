@@ -1,11 +1,11 @@
 import math
 import numpy
+import numpy as np
 import scipy
 
 
 class KernelCorrelation:
 	def __init__(self, scene, model):
-		self.counter = 0
 		self.scene = scene
 		self.model = model
 
@@ -25,7 +25,7 @@ class KernelCorrelation:
 		pass
 
 	def cost(self, theta):
-		return -sum(self.point2cloud_correlation(theta + i, self.scene) for i in self.model)
+		return -sum(self.point2cloud_correlation(theta + i, self.scene) for i in np.asarray(self.model)[:100])
 
 	def minimize(self, max_iters=100000):
 		return scipy.optimize.minimize(
@@ -54,10 +54,10 @@ class GaussianKernelCorrelaton(KernelCorrelation):
 		return math.exp(-diff.dot(diff) ** 2 / (2 * self.sigma ** 2))
 
 	def point2cloud_correlation(self, x, cloud):
-		return sum(self.point2point_correlation(x, i) for i in cloud)
+		return sum(self.point2point_correlation(x, i) for i in np.asarray(cloud)[:100])
 
 	def point2cloud_loo_correlation(self, x, cloud):
-		return sum(0 if (x == i).all() else self.point2point_correlation(x, i) for i in cloud)
+		return sum(0 if (x == i).all() else self.point2point_correlation(x, i) for i in np.asarray(cloud))
 
 	def cloud_correlation(self, cloud):
-		return sum(self.point2cloud_correlation(i, cloud) for i in cloud)
+		return sum(self.point2cloud_correlation(i, cloud) for i in np.asarray(cloud))
