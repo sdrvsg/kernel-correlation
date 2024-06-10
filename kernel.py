@@ -18,21 +18,23 @@ class KernelCorrelation:
 	def point2cloud_correlation(self, x, cloud):
 		pass
 
+	def point2cloud_loo_correlation(self, x, cloud):
+		pass
+
 	def cloud_correlation(self, cloud):
 		pass
 
 	def cost(self, theta):
-		theta = theta.reshape(self.scene.shape[1], self.model.shape[1])
-		return -sum(self.point2cloud_correlation(theta.dot(i), self.scene) for i in self.model)
+		return -sum(self.point2cloud_correlation(theta + i, self.scene) for i in self.model)
 
 	def minimize(self, max_iters=100000):
 		return scipy.optimize.minimize(
 			self.cost,
-			numpy.zeros((self.scene.shape[1] * self.model.shape[1], )),
+			numpy.zeros((3,)),
 			method='Powell',
 			tol=1e-5,
 			options={'maxiter': max_iters, 'maxfev': max_iters, 'disp': True}
-		).x.reshape(self.scene.shape[1], self.model.shape[1])
+		).x
 
 
 class GaussianKernelCorrelaton(KernelCorrelation):
@@ -46,11 +48,15 @@ class GaussianKernelCorrelaton(KernelCorrelation):
 		return (math.pi * self.sigma ** 2) ** (-d / 2) * math.exp(-diff.dot(diff) ** 2 / (self.sigma ** 2))
 
 	def point2point_correlation(self, i, j):
-		d = i.shape[0]
+		# d = i.shape[0]
 		diff = i - j
-		return (2 * math.pi * self.sigma ** 2) ** (-d / 2) * math.exp(-diff.dot(diff) ** 2 / (2 * self.sigma ** 2))
+		# return (2 * math.pi * self.sigma ** 2) ** (-d / 2) * math.exp(-diff.dot(diff) ** 2 / (2 * self.sigma ** 2))
+		return math.exp(-diff.dot(diff) ** 2 / (2 * self.sigma ** 2))
 
 	def point2cloud_correlation(self, x, cloud):
+		return sum(self.point2point_correlation(x, i) for i in cloud)
+
+	def point2cloud_loo_correlation(self, x, cloud):
 		return sum(0 if (x == i).all() else self.point2point_correlation(x, i) for i in cloud)
 
 	def cloud_correlation(self, cloud):
