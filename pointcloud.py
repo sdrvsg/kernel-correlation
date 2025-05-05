@@ -28,7 +28,7 @@ class PointCloud:
 
     def parse(self, filename):
         self.cloud = o3d.io.read_point_cloud(filename)
-        colors = np.repeat(np.array([self.color]).astype(np.float_) / 255.0, np.asarray(self.cloud.points).shape[0], axis=0)
+        colors = np.repeat(np.array([self.color]).astype(np.float64) / 255.0, np.asarray(self.cloud.points).shape[0], axis=0)
         self.cloud.colors = Vector3dVector(colors)
 
         self.translate(self.offset)
@@ -36,6 +36,23 @@ class PointCloud:
 
     def remove_random(self, p=0.1):
         self.cloud = self.cloud.random_down_sample(p)
+
+    def remove_slice(self, p, left):
+        points = np.asarray(self.cloud.points)
+        x_coords = points[:, 0]  # Все X-координаты
+        offset_mul = p if left else 1
+
+        x_min, x_max = np.min(x_coords), np.max(x_coords)
+        threshold = x_min + offset_mul * (x_max - x_min)  # Удаляем первые 30% по ширине
+        filtered_points = points[x_coords > threshold] if left else points[x_coords < threshold]
+        print(filtered_points.shape[0])
+
+        # Создаем новое облако точек
+        self.cloud = o3d.geometry.PointCloud()
+        self.cloud.points = o3d.utility.Vector3dVector(filtered_points)
+
+        colors = np.repeat(np.array([self.color]).astype(np.float64) / 255.0, np.asarray(self.cloud.points).shape[0], axis=0)
+        self.cloud.colors = Vector3dVector(colors)
 
     def show(self):
         o3d.visualization.draw_geometries(
