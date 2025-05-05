@@ -2,6 +2,7 @@ import math
 import numpy
 import numpy as np
 import scipy
+from open3d.cpu.pybind.geometry import get_rotation_matrix_from_xyz
 
 
 class KernelCorrelation:
@@ -25,19 +26,19 @@ class KernelCorrelation:
 		pass
 
 	def cost(self, theta):
-		return -sum(self.point2cloud_correlation(theta + i, self.scene) for i in np.asarray(self.model)[:100])
+		return -sum(self.point2cloud_correlation(theta[0:3] + i, self.scene) for i in np.asarray(self.model)[:100])
 
 	def minimize(self, max_iters=100000):
 		return scipy.optimize.minimize(
 			self.cost,
-			numpy.zeros((3,)),
+			numpy.zeros((6, )),
 			method='Powell',
 			tol=1e-5,
 			options={'maxiter': max_iters, 'maxfev': max_iters, 'disp': True}
 		).x
 
 
-class GaussianKernelCorrelaton(KernelCorrelation):
+class GaussianKernelCorrelation(KernelCorrelation):
 	def __init__(self, scene, model, sigma=1):
 		super().__init__(scene, model)
 		self.sigma = sigma
