@@ -1,77 +1,74 @@
+from contextlib import contextmanager
+from time import perf_counter
+import numpy as np
 from pointcloud import PointCloud
 from kernel import GaussianKernelCorrelation
-import numpy as np
-from time import perf_counter
+
+
+@contextmanager
+def counter():
+    start = perf_counter()
+    yield
+    end = perf_counter()
+    print(f'Выполнено за {end - start:.6f} сек')
 
 
 def main():
-    model = 'bunny'
-    ext = 'ply'
+    model = 'objects/bunny.ply'
+    model_scaling = (55000, -55000)
+    percent = 1
+    sigma = 0.1
 
-    models = {
-        'source': {
-            'scale': [55000, -55000],
-            'offset': [0.045, -0.045, 10.0],
-            'rotate': [0, 0, 0],
-            'color': [0, 255, 0],
-            'left': True,
-            'pointcloud': None,
-        },
-        'translated': {
-            'scale': [55000, -55000],
-            'offset': [0.015, -0.145, 15.0],
-            'rotate': [0, 0, 0],
-            'color': [255, 0, 0],
-            'left': False,
-            'pointcloud': None,
-        },
-        'rotated': {
-            'scale': [55000, -55000],
-            'offset': [0.045, -0.045, 10.0],
-            'rotate': [np.pi, 0.0, 0.0],
-            'color': [255, 0, 0],
-            'left': False,
-            'pointcloud': None,
-        },
-    }
+    source_offset = (0.045, -0.045, 10.0)
+    source_angle = (0.0, 0.0, 0.0)
+    source_color = (0, 255, 0)
 
-    percent = 0.2
-    for name, data in models.items():
-        cloud = PointCloud(data.get('scale'), data.get('offset'), data.get('rotate'), data.get('color'))
-        cloud.parse(f'objects/{model}.{ext}')
-        cloud.remove_slice(percent, data.get('left'))
-        models[name]['pointcloud'] = cloud
+    transformed_offset = (0.045, -0.045, 10.5)
+    transformed_angle = (np.radians(35.0), np.radians(-100.0), np.radians(35.0))
+    transformed_color = (255, 0, 0)
 
-    source_pc: PointCloud = models.get('source').get('pointcloud', PointCloud())
-    translated_pc: PointCloud = models.get('translated').get('pointcloud', PointCloud())
+    source_cloud = PointCloud(model, model_scaling, source_offset, source_angle, source_color)
+    source_cloud.remove_random(percent)
 
-    start = perf_counter()
+    transformed_cloud = PointCloud(model, model_scaling, transformed_offset, transformed_angle, transformed_color)
+    transformed_cloud.remove_random(percent)
+
+    PointCloud.visualize(source_cloud, transformed_cloud)
 
     kc = GaussianKernelCorrelation(
-        source_pc.points,
-        translated_pc.points,
-        100
+        source_cloud.points,
+        transformed_cloud.points,
+        sigma=sigma
     )
-    theta = kc.minimize()
 
-    end = perf_counter()
-    print(f"Выполнено за {end - start:.6f} сек")
+    with counter():
+        theta = kc.minimize()
 
-    true_offset = np.array(models['source']['offset']) - np.array(models['translated']['offset'])
-    # true_rotate = np.array(models['source']['rotate']) - np.array(models['translated']['rotate'])
-    offset_diff = true_offset - theta[0:3]
-    offset_percentage = np.linalg.norm(offset_diff) / np.linalg.norm(true_offset) * 100
+    offset_slice = (0, 3)
+    rotate_slice = (3, 6)
+    # rotate_slice = (0, 3)
 
-    print(f'offset = {theta[0:3]}')
-    print(f'true offset = {true_offset}')
-    print(f'offset diff = {offset_diff}, percentage = {offset_percentage}')
-    # print(f'rotate = {theta[3:6]}')
-    # print(f'true rotate = {true_rotate}')
+    true_offset = np.array(source_offset) - np.array(transformed_offset)
+    offset_diff = true_offset - theta[offset_slice[0]:offset_slice[1]]
+    true_offset_norm = np.linalg.norm(true_offset)
+    offset_percentage = ((np.linalg.norm(offset_diff) / true_offset_norm) if true_offset_norm else 0) * 100
 
-    PointCloud.visualize(source_pc, translated_pc)
-    translated_pc.translate(theta[0:3])
-    # translated_pc.rotate(theta[3:6])
-    PointCloud.visualize(source_pc, translated_pc)
+    true_angle = np.array(source_angle) - np.array(transformed_angle)
+    angle_diff = true_angle - theta[rotate_slice[0]:rotate_slice[1]]
+    true_angle_norm = np.linalg.norm(true_angle)
+    angle_percentage = ((np.linalg.norm(angle_diff) / true_angle_norm) if true_angle_norm else 0) * 100
+
+    print(f'Полученное смещение: {theta[offset_slice[0]:offset_slice[1]]}')
+    print(f'Настоящее смещение: {true_offset}')
+    print(f'Разница: {offset_diff} ({offset_percentage:.3f}%)')
+    print()
+    print(f'Полученное вращение: {theta[rotate_slice[0]:rotate_slice[1]]}')
+    print(f'Настоящее вращение: {true_angle}')
+    print(f'Разница: {angle_diff} ({angle_percentage:.3f}%)')
+
+    transformed_cloud.offset = theta[offset_slice[0]:offset_slice[1]]
+    transformed_cloud.angle = theta[rotate_slice[0]:rotate_slice[1]]
+    PointCloud.visualize(source_cloud, transformed_cloud)
 
 
 if __name__ == '__main__':
